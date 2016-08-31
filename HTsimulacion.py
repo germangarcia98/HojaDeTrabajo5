@@ -5,94 +5,113 @@
 
 import simpy
 import random
-             
-def proceso (env,nProcesos,numero,cMemoria,mProcesos,nInst,cantInst):
 
-    global tiempo1,tiempo2 
+#---------------------------------------------------------#
+#Variables del programa
+
+semillaRam = 10  #Valor de la Semilla para el random
+Procesos = 200   #Cantidad de Procesos a Efectuar   
+
+#Variables para llevar el control de los tiempos
+Tiempo1 = 0
+Tiempo2 = []
+
+random.seed(semillaRam)     #Creacion de random usando el valor de la variable semillaRam como semilla
+env = simpy.Environment()   #Creacion del environment para el programa
+valorCPU = simpy.Resource(env,capacity=2)   #Variable para asignacion del valor del cpu usandola como tipo Resource
+memoria = simpy.Container(env,init=100,capacity=100)    #Valor de la memoria, utilizando un Container para su manejo, init valor inicial, capacity capacidad maxima
+tEsperaCola = simpy.Resource(env,capacity=3)    #Variable para el tiempo de espera de la cola usandola como tipo Resorce
+
+#---------------------------------------------------------#
+
+
+# Operaciones requeridas por el programa y obtencion de tiempos
+     
+def Proceso (env,NumProceso,numero,memoria,memoriaRequerida,nInst,cantInst):
+
+    global Tiempo1, Tiempo2 #variables globales para los tiempos
 
     
-    #Primer Tiempo del Proceso
-    yield env.timeout(nProcesos)
-    print('Tiempo %f - Proceso %s requiere %d de la RAM' % (env.now,numero,mProcesos))
+    #Primer Tiempo de la etapa
+    # Obtencion del primer tiempo medido e impresion del numero de proceso y memoria que requiere el proceso
+    
+    yield env.timeout(NumProceso) 
+    print('Tiempo: %f - Proceso %s - requiere %d de la RAM' % (env.now,numero,memoriaRequerida))
     tiempoMedido = env.now
 
 
-    #New asignacion de memoria RAM
-    yield cMemoria.get(mProcesos)
-    print('Tiempo2 %f Proceso - %s Memoria Asignada al Proceso %d' % (env.now,numero,mProcesos))
+    #New asignacion de mRam RAM
+    # Impresion del tiempo transcurrido, el numero de proceso y validacion de la memoria asignada al proceso
+    yield memoria.get(memoriaRequerida)
+    print('Tiempo: %f - Proceso %s - Ram Asignada al Proceso %d' % (env.now,numero,memoriaRequerida))
 
 
-    numIns = 0
+    # Siguiente etapa
+    
+    numIns = 0  # Variable para el control de instrucciones
+    
     #Etapa Ready y Running
+    # Ciclo que se realiza mientras la variable numIns sea menor a nInst, que es el numero de Instrucciones random asignada al proceso
+
     while numIns < nInst:
-        with vCpu.request() as req:
+        with valorCPU.request() as req:
             yield req
-            if (nInst-numIns)>=cantInst: ###########
-                instrucProcesar = cantInst ########
+            if (nInst-numIns)>=cantInst: 
+                instruccionaProcesar = cantInst 
 
             else:
-                instrucProcesar=(nInst-numIns)
+                instruccionaProcesar=(nInst-numIns)
 
-    #Impresion del tiempo usado
-            print('Tiempo3 %f Proceso - %s pasa a etapa ready %d ' % (env.now,numero,instrucProcesar))
-
-
-            yield env.timeout(instrucProcesar/cantInst)
-            numIns += instrucProcesar
+    #Impresion del tiempo usado, el numero del proceso y validacion para ver que paso a la etapa ready                
+            print('Tiempo necesario: %f - Proceso %s - pasa a etapa ready %d ' % (env.now,numero,instruccionaProcesar))
+            yield env.timeout(instruccionaProcesar/cantInst)
+            numIns += instruccionaProcesar      #Incremento de la variable numIns
 
     
     #Etapa Final Ramdom para el Waiting o Ready
-
-            variableCola = random.randint(1,2)
-            if variableCola == 1 and instrucProcesar < cantInst:
-                with tEsperaCola() as req2:
-                    yield req2
+            
+            variableCola = random.randint(1,2) #Se realiza un random para ver si el proceso para a ready o waiting
+            if variableCola == 1 and instruccionaProcesar < cantInst:
+                with tEsperaCola.request() as reqE:
+                    yield reqE
                 yield env.timeout(1)
         
 
-        yield cMemoria.put(mProcesos)
-        print('Terminated %f - %s, Se Requirio de la RAM %d ' % (env.now, numero, mProcesos))
+    yield memoria.put(memoriaRequerida)
 
-        tiempo1 = tiempo1+(env.now-tiempoMedido)
-        tiempo2.append(env.now-tiempoMedido)
-          
+    # Impresion para verificar el proceso llego a terminated, el numero de proceso y la cantidad de ram que utilizo
+    print('Terminated %f - Proceso %s - Cantidad de RAM utilizada: %d ' % (env.now, numero, memoriaRequerida))
+    Tiempo1 = Tiempo1+(env.now-tiempoMedido)
+    Tiempo2.append(env.now-tiempoMedido)
+    print ('')		  
 
+   
+
+# Creacion de for para generacion random de los valores del numero de procesos, memoria para los procesos y el numero de instrucciones asignadas
+
+for i in range(Procesos):
     
-
-
-
-intervaloP = 10  #Invervalos de Instrucciones
-cantRam = 10        #Semilla para ramdom ram
-mRam = 100          #Ram Disponible
-
-tiempo1= 0.0
-tiempo2=[]
-                      
-env = simpy.Environment()
-vCpu = simpy.Resource(env, capacity=2)
-cMemoria = simpy.Container(env, init=100, capacity=100)
-tEsperaCola=simpy.Resource(env, capacity=1)
-nProsCPU=3
-random.seed(cantRam) #Generador random para asignacion de memoria
-interval=2           #Variable para generar numeros al azar, para simulacion de llegada de procesos
-cantInst = 3.0 #sssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss
-
-#Se realizan los procesos
-
-for i in range(intervaloP):
-    nProcesos = random.expovariate(1.0/interval)       #Generacion de numero de Procesos
-    nInst = random.randint(1,13)        #Generacion de de instrucciones del proceso
-    mProcesos = random.randint(1,10)   #Memoria para procesos
-    env.process(proceso(env,nProcesos,str (i),cMemoria, mProcesos,nInst,cantInst))
+    NumProceso = random.expovariate(1.0)       #Generacion de numero de Procesos
+    nInst = random.randint(1, 10)              #Generacion de de instrucciones del proceso
+    memoriaRequerida = random.randint(1,10)    #mRam para procesos    
+    
+    env.process(Proceso(env,NumProceso,str (i),memoria, memoriaRequerida,nInst,3.0))
    	
-env.run()
+env.run ()
 
-print ("Numero de Procesos %f" %(intervaloP))
-print ("Numero de Procesos Soportados %f" %(cantInst))
-promedio = (tiempo1/intervaloP)
-print ("Timpo Promedio %f" %(promedio))
-tiempoPre=0
-for k in tiempo2:
-    tiempoPre=tiempoPre+((k-promedio))**2
-    DesviacionEstandar = (tiempoPre/(intervaloP-1))**0.5
+#Impresion del numero de procesos realizados
+
+print ("Numero de Procesos %d" %(Procesos))
+
+#Calculo del tiempo promedio
+promedio = (Tiempo1/Procesos)
+
+#Impresion del valor del tiempo promedio
+print ("Tiempo Promedio %f" %(promedio))
+
+#Calculo e impresion de la desviacion estandar
+tiempo=0
+for k in Tiempo2:
+    tiempo=tiempo+((k-promedio))**2
+    DesviacionEstandar = (tiempo/(Procesos-1))**0.5
 print("La desviacion Estandar es: %f" %(DesviacionEstandar))
